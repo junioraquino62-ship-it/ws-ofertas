@@ -6,8 +6,6 @@ import logoLoja from './assets/logo-loja.png'
 import { listBanners, saveBanners, type BannerItem } from './lib/banners'
 import {
   isLocalAdminLoggedIn,
-  LOCAL_ADMIN_EMAIL,
-  LOCAL_ADMIN_PASSWORD,
   loginLocalAdmin,
   logoutLocalAdmin,
 } from './lib/accounts'
@@ -430,8 +428,8 @@ function App() {
   const [isLogged, setIsLogged] = useState(false)
   const [credentials, setCredentials] = useState({
     name: '',
-    email: LOCAL_ADMIN_EMAIL,
-    password: LOCAL_ADMIN_PASSWORD,
+    email: '',
+    password: '',
   })
   const [form, setForm] = useState<ProductInput>(emptyForm)
   const [editingProductId, setEditingProductId] = useState<string | null>(null)
@@ -1156,8 +1154,8 @@ function App() {
       setIsLogged(true)
       setCredentials({
         name: '',
-        email: LOCAL_ADMIN_EMAIL,
-        password: LOCAL_ADMIN_PASSWORD,
+        email: '',
+        password: '',
       })
       setAdminPanelTab('overview')
       setTab('admin')
@@ -1426,18 +1424,33 @@ function App() {
     <>
       {/* Navbar fixa no topo */}
       <header className="navbar">
-        <button
-          type="button"
-          className={isMenuOpen ? 'nav-hamburger open' : 'nav-hamburger'}
-          aria-label={isMenuOpen ? 'Fechar menu' : 'Abrir menu'}
-          aria-expanded={isMenuOpen ? 'true' : 'false'}
-          aria-controls="nav-drawer"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-        >
-          <span />
-          <span />
-          <span />
-        </button>
+        {isMenuOpen ? (
+          <button
+            type="button"
+            className="nav-hamburger open"
+            aria-label="Fechar menu"
+            aria-expanded="true"
+            aria-controls="nav-drawer"
+            onClick={() => setIsMenuOpen(false)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="nav-hamburger"
+            aria-label="Abrir menu"
+            aria-expanded="false"
+            aria-controls="nav-drawer"
+            onClick={() => setIsMenuOpen(true)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        )}
 
         <button
           type="button"
@@ -2475,7 +2488,6 @@ function App() {
                   type="email"
                   required
                   value={credentials.email}
-                  readOnly={useLocalAuth}
                   onChange={(event) =>
                     setCredentials((previous) => ({
                       ...previous,
@@ -2484,7 +2496,9 @@ function App() {
                   }
                 />
                 {useLocalAuth ? (
-                  <small>E-mail fixo do admin: {LOCAL_ADMIN_EMAIL}</small>
+                  <small>
+                    No primeiro login local, o e-mail/senha informados viram as credenciais do admin.
+                  </small>
                 ) : null}
               </label>
               <label>
@@ -2493,7 +2507,6 @@ function App() {
                   type="password"
                   required
                   value={credentials.password}
-                  readOnly={useLocalAuth}
                   onChange={(event) =>
                     setCredentials((previous) => ({
                       ...previous,
@@ -2501,9 +2514,6 @@ function App() {
                     }))
                   }
                 />
-                {useLocalAuth ? (
-                  <small>Senha fixa do admin: {LOCAL_ADMIN_PASSWORD}</small>
-                ) : null}
               </label>
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving
@@ -2537,33 +2547,69 @@ function App() {
 
               <section className="admin-section" aria-label="Secoes do admin">
                 <div className="admin-tabs" role="tablist" aria-label="Secoes do admin">
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={adminPanelTab === 'overview' ? 'true' : 'false'}
-                    className={adminPanelTab === 'overview' ? 'admin-tab is-active' : 'admin-tab'}
-                    onClick={() => setAdminPanelTab('overview')}
-                  >
-                    Resumo
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={adminPanelTab === 'products' ? 'true' : 'false'}
-                    className={adminPanelTab === 'products' ? 'admin-tab is-active' : 'admin-tab'}
-                    onClick={() => setAdminPanelTab('products')}
-                  >
-                    Produtos
-                  </button>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={adminPanelTab === 'banners' ? 'true' : 'false'}
-                    className={adminPanelTab === 'banners' ? 'admin-tab is-active' : 'admin-tab'}
-                    onClick={() => setAdminPanelTab('banners')}
-                  >
-                    Banners
-                  </button>
+                  {adminPanelTab === 'overview' ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="true"
+                      className="admin-tab is-active"
+                      onClick={() => setAdminPanelTab('overview')}
+                    >
+                      Resumo
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      className="admin-tab"
+                      onClick={() => setAdminPanelTab('overview')}
+                    >
+                      Resumo
+                    </button>
+                  )}
+                  {adminPanelTab === 'products' ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="true"
+                      className="admin-tab is-active"
+                      onClick={() => setAdminPanelTab('products')}
+                    >
+                      Produtos
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      className="admin-tab"
+                      onClick={() => setAdminPanelTab('products')}
+                    >
+                      Produtos
+                    </button>
+                  )}
+                  {adminPanelTab === 'banners' ? (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="true"
+                      className="admin-tab is-active"
+                      onClick={() => setAdminPanelTab('banners')}
+                    >
+                      Banners
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      className="admin-tab"
+                      onClick={() => setAdminPanelTab('banners')}
+                    >
+                      Banners
+                    </button>
+                  )}
                 </div>
 
                 {adminPanelTab === 'overview' ? (

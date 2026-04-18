@@ -335,6 +335,12 @@ export async function loginAdmin(email: string, password: string): Promise<void>
   if (error) {
     throw new Error(error.message)
   }
+
+  const hasAdminPermission = await isAdminLoggedIn()
+  if (!hasAdminPermission) {
+    await supabase.auth.signOut()
+    throw new Error('Sua conta nao possui permissao de administrador.')
+  }
 }
 
 export async function logoutAdmin(): Promise<void> {
@@ -357,5 +363,26 @@ export async function isAdminLoggedIn(): Promise<boolean> {
     throw new Error(error.message)
   }
 
-  return Boolean(data.session)
+  const userId = data.session?.user?.id
+  if (!userId) {
+    return false
+  }
+
+  const { data: adminRow, error: adminError } = await supabase
+    .from('admin_users')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (adminError) {
+    const relationMissing =
+      adminError.message.toLowerCase().includes('admin_users') ||
+      adminError.code === '42P01'
+    if (relationMissing) {
+      return false
+    }
+    throw new Error(adminError.message)
+  }
+
+  return Boolean(adminRow)
 }
