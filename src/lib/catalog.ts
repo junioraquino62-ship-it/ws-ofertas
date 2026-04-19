@@ -355,7 +355,7 @@ export async function logoutAdmin(): Promise<void> {
 
 export async function isAdminLoggedIn(): Promise<boolean> {
   if (!supabase) {
-    return true
+    return false
   }
 
   const { data, error } = await supabase.auth.getSession()
