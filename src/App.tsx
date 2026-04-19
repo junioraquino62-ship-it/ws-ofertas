@@ -1520,15 +1520,13 @@ function App() {
           >
             Vitrine
           </button>
-          {isLogged ? (
-            <button
-              type="button"
-              className={tab === 'admin' ? 'nav-link active' : 'nav-link'}
-              onClick={() => setTab('admin')}
-            >
-              Admin
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={tab === 'admin' ? 'nav-link active' : 'nav-link'}
+            onClick={() => setTab('admin')}
+          >
+            {isLogged ? 'Admin' : 'Entrar admin'}
+          </button>
           <button
             type="button"
             className={tab === 'account' ? 'nav-link active' : 'nav-link'}
@@ -1585,15 +1583,13 @@ function App() {
         >
           Vitrine
         </button>
-        {isLogged ? (
-          <button
-            type="button"
-            className={tab === 'admin' ? 'drawer-item active' : 'drawer-item'}
-            onClick={() => { setTab('admin'); setIsMenuOpen(false) }}
-          >
-            Admin
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={tab === 'admin' ? 'drawer-item active' : 'drawer-item'}
+          onClick={() => { setTab('admin'); setIsMenuOpen(false) }}
+        >
+          {isLogged ? 'Admin' : 'Entrar admin'}
+        </button>
         <button
           type="button"
           className={tab === 'account' ? 'drawer-item active' : 'drawer-item'}
