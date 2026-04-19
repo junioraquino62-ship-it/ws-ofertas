@@ -1520,13 +1520,15 @@ function App() {
           >
             Vitrine
           </button>
-          <button
-            type="button"
-            className={tab === 'admin' ? 'nav-link active' : 'nav-link'}
-            onClick={() => setTab('admin')}
-          >
-            {isLogged ? 'Admin' : 'Entrar admin'}
-          </button>
+          {isLogged ? (
+            <button
+              type="button"
+              className={tab === 'admin' ? 'nav-link active' : 'nav-link'}
+              onClick={() => setTab('admin')}
+            >
+              Admin
+            </button>
+          ) : null}
           <button
             type="button"
             className={tab === 'account' ? 'nav-link active' : 'nav-link'}
@@ -1583,13 +1585,15 @@ function App() {
         >
           Vitrine
         </button>
-        <button
-          type="button"
-          className={tab === 'admin' ? 'drawer-item active' : 'drawer-item'}
-          onClick={() => { setTab('admin'); setIsMenuOpen(false) }}
-        >
-          {isLogged ? 'Admin' : 'Entrar admin'}
-        </button>
+        {isLogged ? (
+          <button
+            type="button"
+            className={tab === 'admin' ? 'drawer-item active' : 'drawer-item'}
+            onClick={() => { setTab('admin'); setIsMenuOpen(false) }}
+          >
+            Admin
+          </button>
+        ) : null}
         <button
           type="button"
           className={tab === 'account' ? 'drawer-item active' : 'drawer-item'}
@@ -2004,6 +2008,14 @@ function App() {
                 </div>
               ) : (
                 <div className="account-auth">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setTab('admin')}
+                  >
+                    Entrar como admin
+                  </button>
+
                   {isSupabaseEnabled ? (
                     <button
                       type="button"
