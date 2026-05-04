@@ -1720,60 +1720,7 @@ function App() {
             {accountLoading ? 'Saindo...' : 'Sair da conta'}
           </button>
         ) : null}
-        <p className="drawer-section">Filtros</p>
-        <button
-          type="button"
-          className={selectedParentCategory === 'Todas' ? 'drawer-item active' : 'drawer-item'}
-          onClick={() => {
-            setSelectedParentCategory('Todas')
-            setSelectedSubcategory('Todas')
-            setTab('vitrine')
-            setIsMenuOpen(false)
-          }}
-        >
-          Todos os departamentos
-        </button>
-        {Object.keys(categoryHierarchy).map((parent) => (
-          <button
-            type="button"
-            key={parent}
-            className={selectedParentCategory === parent ? 'drawer-item active' : 'drawer-item'}
-            onClick={() => {
-              setSelectedParentCategory(parent)
-              setSelectedSubcategory('Todas')
-              setTab('vitrine')
-              setIsMenuOpen(false)
-            }}
-          >
-            {parent}
-          </button>
-        ))}
-        <p className="drawer-section">Marcas</p>
-        <button
-          type="button"
-          className={selectedBrand === 'Todas' ? 'drawer-item active' : 'drawer-item'}
-          onClick={() => {
-            setSelectedBrand('Todas')
-            setTab('vitrine')
-            setIsMenuOpen(false)
-          }}
-        >
-          Todas marcas
-        </button>
-        {availableBrands.map((brand) => (
-          <button
-            type="button"
-            key={brand}
-            className={selectedBrand === brand ? 'drawer-item active' : 'drawer-item'}
-            onClick={() => {
-              setSelectedBrand(brand)
-              setTab('vitrine')
-              setIsMenuOpen(false)
-            }}
-          >
-            {brand}
-          </button>
-        ))}
+
       </aside>
 
       <aside

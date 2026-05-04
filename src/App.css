@@ -2039,20 +2039,25 @@ textarea {
 }
 
 @media (max-width: 680px) {
-  /* No mobile, filtros ficam no drawer para visual de app */
+  /* No mobile, filtros ficam no category bar abaixo */
   .filter-sidebar {
+    display: none;
+  }
+
+  /* Esconde título para a navbar caber em 1 linha: [≡] [logo] [Carrinho] */
+  .nav-title {
     display: none;
   }
 
   .navbar {
     flex-wrap: wrap;
-    padding: 0.55rem 0.75rem;
-    gap: 0.55rem;
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
   }
 
   .drawer-item {
     padding: 0.5rem 0.62rem;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     min-height: 40px;
   }
 
@@ -2243,23 +2248,32 @@ textarea {
   }
 }
 
-/* Category bar com scroll horizontal em mobile */
+/* Category bar: grid visível em mobile (estilo app — sem scroll horizontal) */
 @media (max-width: 680px) {
   .category-bar {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    padding-bottom: 0.2rem;
-  }
-
-  .category-bar::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+    overflow: visible;
   }
 
   .cat-pill {
-    flex-shrink: 0;
-    white-space: nowrap;
+    width: 100%;
+    text-align: center;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
+    min-height: 40px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  /* Selects de tipo e marca ocupam linha inteira */
+  .category-bar select {
+    grid-column: span 2;
+    width: 100%;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.65rem;
+    min-height: 40px;
   }
 }
 
