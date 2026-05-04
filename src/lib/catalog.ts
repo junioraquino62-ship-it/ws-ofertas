@@ -1,10 +1,9 @@
-import { supabase } from './supabaseClient'
+import { isSupabaseEnabled, supabase } from './supabaseClient'
 export { isSupabaseEnabled } from './supabaseClient'
 import type { Product, ProductInput } from '../types'
 
-// No localhost sempre usa storage local, independente do Supabase configurado
-const isLocalMode =
-  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// Usa storage local apenas quando o Supabase nao estiver configurado
+const isLocalMode = !isSupabaseEnabled
 
 const storageKey = 'ws-ofertas-products'
 

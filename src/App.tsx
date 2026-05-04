@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { Autoplay, Navigation, Pagination } from 'swiper/modules'
+import { Autoplay, Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import logoLoja from './assets/logo-loja.png'
 import { listBanners, saveBanners, type BannerItem } from './lib/banners'
 import {
+  adminEmail,
   isLocalAdminLoggedIn,
   loginLocalAdmin,
   logoutLocalAdmin,
@@ -83,8 +84,8 @@ type Order = {
     | 'Entregue'
 }
 
-// Usa auth local (localStorage) quando estiver no localhost, independente do Supabase
-const useLocalAuth = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+// Usa auth local (localStorage) apenas quando o Supabase nao estiver configurado
+const useLocalAuth = !isSupabaseEnabled
 
 const orderHistoryStorageKey = 'ws-ofertas-order-history'
 const localUserAccountsStorageKey = 'ws-ofertas-user-accounts'
@@ -407,6 +408,7 @@ function estimateShipping(cepDigits: string, price: number): ShippingEstimate {
 }
 
 function App() {
+  const bannerSwiperRef = useRef<any>(null)
   const [tab, setTab] = useState<Tab>('vitrine')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -440,6 +442,9 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearchFocused, setIsSearchFocused] = useState(false)
   const [adminSearchQuery, setAdminSearchQuery] = useState('')
+  const [adminCategoryFilter, setAdminCategoryFilter] = useState('Todas')
+  const [adminSubcategoryFilter, setAdminSubcategoryFilter] = useState('Todas')
+  const [adminBrandFilter, setAdminBrandFilter] = useState('Todas')
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isCheckingOut, setIsCheckingOut] = useState(false)
@@ -493,6 +498,15 @@ function App() {
 
       const { data } = onAuthStateChange((_, session) => {
         setUserAccount(session?.user ?? null)
+
+        if (!session?.user) {
+          setIsLogged(false)
+          return
+        }
+
+        isAdminLoggedIn()
+          .then((logged) => setIsLogged(logged))
+          .catch(() => setIsLogged(false))
       })
 
       const handleVisibilityChangeSupabase = () => {
@@ -548,6 +562,21 @@ function App() {
       setUserProfile(null)
     }
   }, [isSupabaseEnabled, userAccount?.email, userAccount?.id])
+
+  useEffect(() => {
+    if (!isSupabaseEnabled || useLocalAuth) {
+      return
+    }
+
+    if (!userAccount?.id) {
+      setIsLogged(false)
+      return
+    }
+
+    isAdminLoggedIn()
+      .then((logged) => setIsLogged(logged))
+      .catch(() => setIsLogged(false))
+  }, [userAccount?.id])
 
   useEffect(() => {
     if (!userAccount?.email) {
@@ -704,6 +733,69 @@ function App() {
         .includes(q),
     )
   }, [adminSearchQuery, products])
+
+  const adminCategoryOptions = useMemo(
+    () => Array.from(new Set(products.map((product) => product.parentCategory))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [products],
+  )
+
+  const adminSubcategoryFilterOptions = useMemo(() => {
+    const source =
+      adminCategoryFilter === 'Todas'
+        ? products
+        : products.filter((product) => product.parentCategory === adminCategoryFilter)
+
+    return Array.from(new Set(source.map((product) => product.subcategory))).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR'),
+    )
+  }, [adminCategoryFilter, products])
+
+  const adminBrandFilterOptions = useMemo(() => {
+    const source =
+      adminCategoryFilter === 'Todas'
+        ? products
+        : products.filter((product) => product.parentCategory === adminCategoryFilter)
+
+    return Array.from(new Set(source.map((product) => product.brand))).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR'),
+    )
+  }, [adminCategoryFilter, products])
+
+  const adminFilteredProducts = useMemo(() => {
+    let result = adminProducts
+
+    if (adminCategoryFilter !== 'Todas') {
+      result = result.filter((product) => product.parentCategory === adminCategoryFilter)
+    }
+
+    if (adminSubcategoryFilter !== 'Todas') {
+      result = result.filter((product) => product.subcategory === adminSubcategoryFilter)
+    }
+
+    if (adminBrandFilter !== 'Todas') {
+      result = result.filter((product) => product.brand === adminBrandFilter)
+    }
+
+    return result
+  }, [adminBrandFilter, adminCategoryFilter, adminProducts, adminSubcategoryFilter])
+
+  const adminProductsByCategory = useMemo(() => {
+    const groups = new Map<string, Product[]>()
+
+    for (const product of adminFilteredProducts) {
+      const key = product.parentCategory || 'Sem categoria'
+      const current = groups.get(key) ?? []
+      current.push(product)
+      groups.set(key, current)
+    }
+
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))
+      .map(([category, items]) => ({
+        category,
+        items: [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+      }))
+  }, [adminFilteredProducts])
 
   const adminStats = useMemo(() => {
     const total = products.length
@@ -1208,13 +1300,27 @@ function App() {
 
       if (isSupabaseEnabled && !useLocalAuth) {
         await signInWithEmail(accountEmail, accountPassword)
+
+        const hasAdminAccess = await isAdminLoggedIn().catch(() => false)
+        setIsLogged(hasAdminAccess)
+        setTab(hasAdminAccess ? 'admin' : 'account')
       } else {
+        // Se o e-mail for o do admin, autentica no painel admin diretamente
+        if (accountEmail.trim().toLowerCase() === adminEmail.toLowerCase()) {
+          loginLocalAdmin(accountEmail.trim(), accountPassword)
+          setIsLogged(true)
+          setAdminPanelTab('overview')
+          setTab('admin')
+          setAccountEmail('')
+          setAccountPassword('')
+          return
+        }
         const user = signInLocalUser(accountEmail.trim(), accountPassword)
         setUserAccount(user)
+        setTab('account')
       }
       setAccountEmail('')
       setAccountPassword('')
-      setTab('account')
     } catch (err) {
       if (err instanceof Error) {
         setAccountError(err.message)
@@ -1255,7 +1361,7 @@ function App() {
     setAccountLoading(true)
     try {
       if (!isSupabaseEnabled || useLocalAuth) {
-        throw new Error('Login com Google não disponível no localhost. Use e-mail e senha.')
+        throw new Error('Login com Google requer Supabase configurado. No ambiente de produção (Vercel) estará disponível.')
       }
       await signInWithGoogle()
     } catch (err) {
@@ -2010,45 +2116,26 @@ function App() {
                 <div className="account-auth">
                   <button
                     type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setTab('admin')}
+                    className="btn-google"
+                    onClick={handleUserLoginWithGoogle}
+                    disabled={accountLoading}
                   >
-                    Entrar como admin
+                    <svg width="20" height="20" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                    </svg>
+                    Continuar com Google
                   </button>
 
-                  {isSupabaseEnabled ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={handleUserLoginWithGoogle}
-                      disabled={accountLoading}
-                    >
-                      Entrar com Google
-                    </button>
-                  ) : null}
+                  <div className="account-divider"><span>ou</span></div>
 
                   {!isSupabaseEnabled ? (
                     <p className="panel-copy">
                       Ambiente local: cadastro e login de cliente funcionando por e-mail e senha.
                     </p>
                   ) : null}
-
-                  <div className="account-mode-toggle">
-                    <button
-                      type="button"
-                      className={accountMode === 'login' ? 'btn btn-primary' : 'btn btn-secondary'}
-                      onClick={() => setAccountMode('login')}
-                    >
-                      Entrar
-                    </button>
-                    <button
-                      type="button"
-                      className={accountMode === 'register' ? 'btn btn-primary' : 'btn btn-secondary'}
-                      onClick={() => setAccountMode('register')}
-                    >
-                      Criar conta
-                    </button>
-                  </div>
 
                   <form className="auth-form" onSubmit={handleUserAuthSubmit}>
                     <label>
@@ -2127,6 +2214,17 @@ function App() {
                           ? 'Criar conta'
                           : 'Entrar'}
                     </button>
+                    <p className="auth-switch">
+                      {accountMode === 'login' ? (
+                        <>Não tem conta?{' '}
+                          <button type="button" className="btn-text-link" onClick={() => setAccountMode('register')}>Criar conta</button>
+                        </>
+                      ) : (
+                        <>Já tem conta?{' '}
+                          <button type="button" className="btn-text-link" onClick={() => setAccountMode('login')}>Entrar</button>
+                        </>
+                      )}
+                    </p>
                   </form>
                 </div>
               )}
@@ -2260,42 +2358,60 @@ function App() {
         ) : (
           <>
             <section className="banner-carousel" aria-label="Banners promocionais">
-          {activeBanners.length > 0 ? (
-            <Swiper
-              modules={[Autoplay, Pagination, Navigation]}
-              autoplay={{
-                delay: 7000,
-                disableOnInteraction: false,
-                pauseOnMouseEnter: true,
-              }}
-              navigation
-              loop
-              pagination={{ clickable: true }}
-              spaceBetween={12}
-              slidesPerView={1}
-            >
-              {activeBanners.map((banner) => (
-                <SwiperSlide key={banner.id}>
+              {activeBanners.length > 0 ? (
+                <>
                   <button
+                    className="banner-nav-btn banner-nav-prev"
+                    aria-label="Banner anterior"
                     type="button"
-                    className="banner-slide"
-                    onClick={() => handleBannerClick(banner)}
+                    onClick={() => bannerSwiperRef.current?.slidePrev()}
                   >
-                    {banner.imageUrl ? (
-                      <img className="banner-image" src={banner.imageUrl} alt={banner.title} />
-                    ) : null}
-                    <span className="banner-kicker">Oferta em destaque</span>
-                    <h2>{banner.title}</h2>
-                    <p>{banner.subtitle}</p>
-                    <span className="banner-cta">{banner.cta}</span>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                   </button>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          ) : (
-            <div className="banner-empty">Nenhum banner ativo no momento.</div>
-          )}
-        </section>
+                  <button
+                    className="banner-nav-btn banner-nav-next"
+                    aria-label="Próximo banner"
+                    type="button"
+                    onClick={() => bannerSwiperRef.current?.slideNext()}
+                  >
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                  </button>
+                  <Swiper
+                    modules={[Autoplay, Pagination]}
+                    autoplay={{
+                      delay: 7000,
+                      disableOnInteraction: false,
+                      pauseOnMouseEnter: true,
+                    }}
+                    onSwiper={(swiper) => { bannerSwiperRef.current = swiper }}
+                    loop
+                    pagination={{ clickable: true }}
+                    spaceBetween={12}
+                    slidesPerView={1}
+                  >
+                    {activeBanners.map((banner) => (
+                      <SwiperSlide key={banner.id}>
+                        <button
+                          type="button"
+                          className="banner-slide"
+                          onClick={() => handleBannerClick(banner)}
+                        >
+                          {banner.imageUrl ? (
+                            <img className="banner-image" src={banner.imageUrl} alt={banner.title} />
+                          ) : null}
+                          <span className="banner-kicker">Oferta em destaque</span>
+                          <h2>{banner.title}</h2>
+                          <p>{banner.subtitle}</p>
+                          <span className="banner-cta">{banner.cta}</span>
+                        </button>
+                      </SwiperSlide>
+                    ))}
+                  </Swiper>
+                </>
+              ) : (
+                <div className="banner-empty">Nenhum banner ativo no momento.</div>
+              )}
+            </section>
 
         {/* Hero apenas com headline */}
         <header className="hero">
@@ -3003,57 +3119,132 @@ function App() {
                             onChange={(event) => setAdminSearchQuery(event.target.value)}
                           />
                         </div>
+                        {products.length > 0 ? (
+                          <p className="admin-results-count">
+                            Mostrando {adminFilteredProducts.length} de {products.length} produto(s)
+                          </p>
+                        ) : null}
+                        <div className="admin-filter-tabs" aria-label="Filtros de produtos">
+                          <div className="admin-filter-row" role="tablist" aria-label="Categorias de produtos">
+                            <button
+                              type="button"
+                              role="tab"
+                              className={adminCategoryFilter === 'Todas' ? 'admin-filter-chip is-active' : 'admin-filter-chip'}
+                              onClick={() => {
+                                setAdminCategoryFilter('Todas')
+                                setAdminSubcategoryFilter('Todas')
+                                setAdminBrandFilter('Todas')
+                              }}
+                            >
+                              Todas categorias
+                            </button>
+                            {adminCategoryOptions.map((category) => (
+                              <button
+                                key={category}
+                                type="button"
+                                role="tab"
+                                className={adminCategoryFilter === category ? 'admin-filter-chip is-active' : 'admin-filter-chip'}
+                                onClick={() => {
+                                  setAdminCategoryFilter(category)
+                                  setAdminSubcategoryFilter('Todas')
+                                  setAdminBrandFilter('Todas')
+                                }}
+                              >
+                                {category}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="admin-filter-grid">
+                            <label>
+                              Subcategoria
+                              <select
+                                value={adminSubcategoryFilter}
+                                onChange={(event) => setAdminSubcategoryFilter(event.target.value)}
+                              >
+                                <option value="Todas">Todas</option>
+                                {adminSubcategoryFilterOptions.map((subcategory) => (
+                                  <option key={subcategory} value={subcategory}>
+                                    {subcategory}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              Marca
+                              <select
+                                value={adminBrandFilter}
+                                onChange={(event) => setAdminBrandFilter(event.target.value)}
+                              >
+                                <option value="Todas">Todas</option>
+                                {adminBrandFilterOptions.map((brand) => (
+                                  <option key={brand} value={brand}>
+                                    {brand}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        </div>
                         {products.length === 0 ? <p>Nenhum produto cadastrado.</p> : null}
-                        {products.length > 0 && adminProducts.length === 0 ? (
+                        {products.length > 0 && adminFilteredProducts.length === 0 ? (
                           <p>Nenhum produto encontrado para essa busca.</p>
                         ) : null}
-                        {adminProducts.map((product) => (
-                          <div className="product-row" key={product.id}>
-                            <div>
-                              <strong>{product.name}</strong>
-                              <p>{product.brand} · {product.parentCategory} / {product.subcategory}</p>
-                              <p className="product-stock-row">
-                                <span
-                                  className={
-                                    product.unavailable || product.stock === 0
-                                      ? 'stock-pill danger'
-                                      : product.stock <= 3
-                                        ? 'stock-pill warning'
-                                        : 'stock-pill ok'
-                                  }
-                                >
-                                  Estoque: {product.stock}
-                                </span>
-                                {product.unavailable ? (
-                                  <span className="status-pill">Indisponivel</span>
-                                ) : null}
-                              </p>
-                              <p>{formatCurrency(product.price)}</p>
+                        {adminProductsByCategory.map((group) => (
+                          <section className="admin-category-group" key={group.category}>
+                            <div className="admin-category-heading">
+                              <h4>{group.category}</h4>
+                              <span>{group.items.length} item(ns)</span>
                             </div>
-                            <div className="row-actions">
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => handleStartEdit(product)}
-                              >
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => handleToggleActive(product.id, !product.active)}
-                              >
-                                {product.active ? 'Retirar da vitrine' : 'Reativar'}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-danger"
-                                onClick={() => handleDelete(product.id)}
-                              >
-                                Excluir
-                              </button>
-                            </div>
-                          </div>
+                            {group.items.map((product) => (
+                              <div className="product-row" key={product.id}>
+                                <div>
+                                  <strong>{product.name}</strong>
+                                  <p>{product.brand} · {product.parentCategory} / {product.subcategory}</p>
+                                  <p className="product-stock-row">
+                                    <span
+                                      className={
+                                        product.unavailable || product.stock === 0
+                                          ? 'stock-pill danger'
+                                          : product.stock <= 3
+                                            ? 'stock-pill warning'
+                                            : 'stock-pill ok'
+                                      }
+                                    >
+                                      Estoque: {product.stock}
+                                    </span>
+                                    {product.unavailable ? (
+                                      <span className="status-pill">Indisponivel</span>
+                                    ) : null}
+                                  </p>
+                                  <p>{formatCurrency(product.price)}</p>
+                                </div>
+                                <div className="row-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => handleStartEdit(product)}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary"
+                                    onClick={() => handleToggleActive(product.id, !product.active)}
+                                  >
+                                    {product.active ? 'Retirar da vitrine' : 'Reativar'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-danger"
+                                    onClick={() => handleDelete(product.id)}
+                                  >
+                                    Excluir
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </section>
                         ))}
                       </div>
                     </div>

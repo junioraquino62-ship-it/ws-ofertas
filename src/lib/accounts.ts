@@ -7,17 +7,64 @@ type LocalAccount = {
 
 const accountKey = 'ws-ofertas-admin-accounts'
 const sessionKey = 'ws-ofertas-admin-session'
+export const adminEmail = 'admin@wsofertas.com'
+const defaultLocalAdminEmail = adminEmail
+const defaultLocalAdminPassword = 'admin@ws88'
+const defaultLocalAdminName = 'Administrador'
+
+function ensureDefaultAdminAccount(accounts: LocalAccount[]) {
+  const defaultIndex = accounts.findIndex(
+    (item) => item.email.toLowerCase() === defaultLocalAdminEmail,
+  )
+
+  if (defaultIndex === -1) {
+    return [
+      ...accounts,
+      {
+        id: crypto.randomUUID(),
+        name: defaultLocalAdminName,
+        email: defaultLocalAdminEmail,
+        password: defaultLocalAdminPassword,
+      },
+    ]
+  }
+
+  const current = accounts[defaultIndex]
+  if (
+    current.password === defaultLocalAdminPassword &&
+    current.name === defaultLocalAdminName
+  ) {
+    return accounts
+  }
+
+  const next = [...accounts]
+  next[defaultIndex] = {
+    ...current,
+    name: defaultLocalAdminName,
+    password: defaultLocalAdminPassword,
+  }
+  return next
+}
 
 function getAccounts(): LocalAccount[] {
   const raw = localStorage.getItem(accountKey)
   if (!raw) {
-    return []
+    const seededAccounts = ensureDefaultAdminAccount([])
+    saveAccounts(seededAccounts)
+    return seededAccounts
   }
 
   try {
-    return JSON.parse(raw) as LocalAccount[]
+    const parsedAccounts = JSON.parse(raw) as LocalAccount[]
+    const syncedAccounts = ensureDefaultAdminAccount(parsedAccounts)
+    if (syncedAccounts !== parsedAccounts) {
+      saveAccounts(syncedAccounts)
+    }
+    return syncedAccounts
   } catch {
-    return []
+    const seededAccounts = ensureDefaultAdminAccount([])
+    saveAccounts(seededAccounts)
+    return seededAccounts
   }
 }
 
@@ -40,18 +87,6 @@ export function loginLocalAdmin(email: string, password: string) {
   }
 
   const accounts = getAccounts()
-  if (accounts.length === 0) {
-    const bootstrappedAdmin: LocalAccount = {
-      id: crypto.randomUUID(),
-      name: 'Administrador',
-      email: normalizedEmail,
-      password,
-    }
-    saveAccounts([bootstrappedAdmin])
-    localStorage.setItem(sessionKey, bootstrappedAdmin.id)
-    return
-  }
-
   const account = accounts.find(
     (item) => item.email.toLowerCase() === normalizedEmail,
   )
