@@ -14,8 +14,33 @@
   font: 18px/1.45 var(--ui-font);
 }
 
+:root[data-theme='light'] {
+  --bg: #f2ece0;
+  --surface: #fffdf9;
+  --surface-soft: #fff8ee;
+  --line: #d0c7b8;
+  --title: #1e1a15;
+  --text: #46403a;
+  --muted: #7a6e64;
+  --accent: #7b28c8;
+  --accent-soft: rgba(123,40,200,0.12);
+  --accent-strong: #6218a8;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Transição suave entre temas */
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition:
+    background-color 0.4s ease,
+    background 0.4s ease,
+    color 0.3s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease !important;
 }
 
 body {
@@ -25,6 +50,14 @@ body {
   background:
     radial-gradient(circle at 85% 10%, #4f1d704d 0, transparent 32%),
     radial-gradient(circle at 8% 88%, #311e664f 0, transparent 30%),
+    var(--bg);
+}
+
+:root[data-theme='light'] body {
+  background:
+    radial-gradient(ellipse at 88% 8%,  rgba(200,160,80,0.18) 0, transparent 36%),
+    radial-gradient(ellipse at 6% 90%,  rgba(180,140,80,0.14) 0, transparent 32%),
+    radial-gradient(ellipse at 50% 50%, rgba(140,47,214,0.04) 0, transparent 60%),
     var(--bg);
 }
 

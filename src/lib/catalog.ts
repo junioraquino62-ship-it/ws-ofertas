@@ -180,16 +180,23 @@ export async function listProducts(): Promise<Product[]> {
     )
   }
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .order('created_at', { ascending: false })
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false })
 
-  if (error) {
-    throw new Error(error.message)
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return (data ?? []).map((row) => mapRow(row as ProductRow))
+  } catch (error) {
+    console.warn('Falha ao buscar produtos no Supabase. Usando dados locais.', error)
+    return getLocalProducts().sort((a, b) =>
+      a.createdAt < b.createdAt ? 1 : -1,
+    )
   }
-
-  return (data ?? []).map((row) => mapRow(row as ProductRow))
 }
 
 export async function createProduct(input: ProductInput): Promise<void> {

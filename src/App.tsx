@@ -37,6 +37,7 @@ import type { Product, ProductInput } from './types'
 import type { User } from '@supabase/supabase-js'
 
 type Tab = 'vitrine' | 'admin' | 'account'
+type ThemeMode = 'dark' | 'light'
 
 type CartItem = {
   productId: string
@@ -90,6 +91,7 @@ const useLocalAuth = !isSupabaseEnabled
 const orderHistoryStorageKey = 'ws-ofertas-order-history'
 const localUserAccountsStorageKey = 'ws-ofertas-user-accounts'
 const localUserSessionStorageKey = 'ws-ofertas-user-session'
+const themeStorageKey = 'ws-ofertas-theme'
 
 type LocalUserAccount = {
   email: string
@@ -409,6 +411,14 @@ function estimateShipping(cepDigits: string, price: number): ShippingEstimate {
 
 function App() {
   const bannerSwiperRef = useRef<any>(null)
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
+    try {
+      const stored = localStorage.getItem(themeStorageKey)
+      return stored === 'light' ? 'light' : 'dark'
+    } catch {
+      return 'dark'
+    }
+  })
   const [tab, setTab] = useState<Tab>('vitrine')
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -468,14 +478,24 @@ function App() {
   const [bannerForm, setBannerForm] = useState(emptyBannerForm)
   const [editingBannerId, setEditingBannerId] = useState<string | null>(null)
   const [adminPanelTab, setAdminPanelTab] = useState<AdminPanelTab>('overview')
+  const [menuSearchQuery, setMenuSearchQuery] = useState('')
+
+  const normalizedMenuSearch = menuSearchQuery.trim().toLocaleLowerCase('pt-BR')
+  const menuMatches = (label: string) =>
+    !normalizedMenuSearch || label.toLocaleLowerCase('pt-BR').includes(normalizedMenuSearch)
+
+  function handleCloseMenu() {
+    setIsMenuOpen(false)
+    setMenuSearchQuery('')
+  }
 
   async function loadProducts() {
     setLoading(true)
     setError(null)
+    setBanners(listBanners())
     try {
       const data = await listProducts()
       setProducts(data)
-      setBanners(listBanners())
     } catch (err) {
       setError('Nao foi possivel carregar os produtos.')
       console.error(err)
@@ -483,6 +503,22 @@ function App() {
       setLoading(false)
     }
   }
+
+  function toggleTheme() {
+    const html = document.documentElement
+    html.classList.add('theme-transitioning')
+    setThemeMode((prev) => (prev === 'dark' ? 'light' : 'dark'))
+    setTimeout(() => html.classList.remove('theme-transitioning'), 500)
+  }
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', themeMode)
+    try {
+      localStorage.setItem(themeStorageKey, themeMode)
+    } catch {
+      // Ignora falha de storage e mantém tema em memória
+    }
+  }, [themeMode])
 
   useEffect(() => {
     loadProducts()
@@ -525,13 +561,23 @@ function App() {
 
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
+        void loadProducts()
         setAllOrders(loadStoredOrders())
       }
     }
 
     function handleStorageChange(event: StorageEvent) {
+      if (!event.key) {
+        return
+      }
+
       if (event.key === 'ws-ofertas-order-history') {
         setAllOrders(loadStoredOrders())
+        return
+      }
+
+      if (event.key === 'ws-ofertas-products' || event.key === 'ws-ofertas-banners') {
+        void loadProducts()
       }
     }
 
@@ -1537,7 +1583,7 @@ function App() {
             aria-label="Fechar menu"
             aria-expanded="true"
             aria-controls="nav-drawer"
-            onClick={() => setIsMenuOpen(false)}
+            onClick={handleCloseMenu}
           >
             <span />
             <span />
@@ -1656,6 +1702,32 @@ function App() {
 
         <button
           type="button"
+          className="theme-toggle"
+          aria-label={themeMode === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
+          title={themeMode === 'dark' ? 'Tema claro' : 'Tema escuro'}
+          onClick={toggleTheme}
+        >
+          {themeMode === 'dark' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"/>
+              <path d="M12 2v2"/>
+              <path d="M12 20v2"/>
+              <path d="m4.93 4.93 1.41 1.41"/>
+              <path d="m17.66 17.66 1.41 1.41"/>
+              <path d="M2 12h2"/>
+              <path d="M20 12h2"/>
+              <path d="m6.34 17.66-1.41 1.41"/>
+              <path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3a7.5 7.5 0 1 0 9 9A9 9 0 1 1 12 3z"/>
+            </svg>
+          )}
+        </button>
+
+        <button
+          type="button"
           className="cart-toggle"
           onClick={() => setIsCartOpen((prev) => !prev)}
           aria-label="Abrir carrinho"
@@ -1677,7 +1749,7 @@ function App() {
           className="nav-overlay"
           aria-hidden="true"
           onClick={() => {
-            setIsMenuOpen(false)
+            handleCloseMenu()
             setIsCartOpen(false)
           }}
         />
@@ -1689,36 +1761,177 @@ function App() {
         className={isMenuOpen ? 'nav-drawer open' : 'nav-drawer'}
         aria-label="Menu lateral"
       >
+        <section className="drawer-account" aria-label="Resumo da conta">
+          <p className="drawer-account-eyebrow">Conta</p>
+          <strong>
+            {userAccount
+              ? userAccount.email?.split('@')[0] ?? 'Cliente'
+              : 'Bem-vindo(a)'}
+          </strong>
+          <p>
+            {userAccount
+              ? userAccount.email
+              : 'Entre para acompanhar pedidos e concluir compras mais rapido.'}
+          </p>
+          <div className="drawer-account-chips">
+            <span className="drawer-chip">Carrinho: {cartCount}</span>
+            <span className="drawer-chip">Em andamento: {ongoingOrders.length}</span>
+          </div>
+        </section>
+
+        <label className="drawer-search" aria-label="Buscar no menu">
+          <input
+            type="text"
+            value={menuSearchQuery}
+            onChange={(event) => setMenuSearchQuery(event.target.value)}
+            placeholder="Buscar atalhos, suporte ou paginas"
+          />
+        </label>
+
+        <p className="drawer-section">Atalhos</p>
+        <div className="drawer-quick-grid">
+          {menuMatches('Continuar compra') ? (
+            <button
+              type="button"
+              className="drawer-quick-item"
+              onClick={() => {
+                if (cartCount > 0) {
+                  setCartStep('form')
+                }
+                setIsCartOpen(true)
+                handleCloseMenu()
+              }}
+            >
+              Continuar compra
+            </button>
+          ) : null}
+          {menuMatches('Meus pedidos') ? (
+            <button
+              type="button"
+              className="drawer-quick-item"
+              onClick={() => {
+                setTab('account')
+                handleCloseMenu()
+              }}
+            >
+              Meus pedidos
+            </button>
+          ) : null}
+          {isLogged && menuMatches('Painel admin') ? (
+            <button
+              type="button"
+              className="drawer-quick-item"
+              onClick={() => {
+                setTab('admin')
+                handleCloseMenu()
+              }}
+            >
+              Painel admin
+            </button>
+          ) : null}
+          {menuMatches('Ofertas em cosmeticos') ? (
+            <button
+              type="button"
+              className="drawer-quick-item"
+              onClick={() => {
+                setTab('vitrine')
+                setSelectedParentCategory('Cosmeticos')
+                setSelectedSubcategory('Todas')
+                setSelectedBrand('Todas')
+                handleCloseMenu()
+              }}
+            >
+              Ofertas em cosmeticos
+            </button>
+          ) : null}
+        </div>
+
+        <article className="drawer-campaign" aria-label="Campanha ativa">
+          <p className="drawer-campaign-eyebrow">Campanha ativa</p>
+          <strong>Semana da beleza</strong>
+          <p>Descontos especiais ativos em produtos selecionados.</p>
+        </article>
+
         <p className="drawer-section">Navegação</p>
-        <button
-          type="button"
-          className={tab === 'vitrine' ? 'drawer-item active' : 'drawer-item'}
-          onClick={() => { setTab('vitrine'); setIsMenuOpen(false) }}
-        >
-          Vitrine
-        </button>
-        {isLogged ? (
+        {menuMatches('Vitrine') ? (
+          <button
+            type="button"
+            className={tab === 'vitrine' ? 'drawer-item active' : 'drawer-item'}
+            onClick={() => {
+              setTab('vitrine')
+              handleCloseMenu()
+            }}
+          >
+            Vitrine
+          </button>
+        ) : null}
+        {isLogged && menuMatches('Admin') ? (
           <button
             type="button"
             className={tab === 'admin' ? 'drawer-item active' : 'drawer-item'}
-            onClick={() => { setTab('admin'); setIsMenuOpen(false) }}
+            onClick={() => {
+              setTab('admin')
+              handleCloseMenu()
+            }}
           >
             Admin
           </button>
         ) : null}
-        <button
-          type="button"
-          className={tab === 'account' ? 'drawer-item active' : 'drawer-item'}
-          onClick={() => { setTab('account'); setIsMenuOpen(false) }}
-        >
-          Minha conta
-        </button>
-        {userAccount ? (
+        {menuMatches('Minha conta') ? (
+          <button
+            type="button"
+            className={tab === 'account' ? 'drawer-item active' : 'drawer-item'}
+            onClick={() => {
+              setTab('account')
+              handleCloseMenu()
+            }}
+          >
+            Minha conta
+          </button>
+        ) : null}
+
+        <p className="drawer-section">Suporte</p>
+        {menuMatches('Fale no WhatsApp') ? (
+          <a
+            className="drawer-item drawer-link"
+            href="https://wa.me/5500000000000"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Fale no WhatsApp
+          </a>
+        ) : null}
+        {menuMatches('FAQ e ajuda') ? (
           <button
             type="button"
             className="drawer-item"
             onClick={() => {
-              setIsMenuOpen(false)
+              setTab('account')
+              handleCloseMenu()
+            }}
+          >
+            FAQ e ajuda
+          </button>
+        ) : null}
+        {menuMatches('Trocas e devolucoes') ? (
+          <button
+            type="button"
+            className="drawer-item"
+            onClick={() => {
+              setTab('account')
+              handleCloseMenu()
+            }}
+          >
+            Trocas e devolucoes
+          </button>
+        ) : null}
+
+        {userAccount && menuMatches('Sair da conta') ? (
+          <button
+            type="button"
+            className="drawer-item"
+            onClick={() => {
+              handleCloseMenu()
               handleUserSignOut()
             }}
             disabled={accountLoading}
@@ -2632,6 +2845,7 @@ function App() {
                       className="admin-tab is-active"
                       onClick={() => setAdminPanelTab('overview')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                       Resumo
                     </button>
                   ) : (
@@ -2642,6 +2856,7 @@ function App() {
                       className="admin-tab"
                       onClick={() => setAdminPanelTab('overview')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                       Resumo
                     </button>
                   )}
@@ -2653,6 +2868,7 @@ function App() {
                       className="admin-tab is-active"
                       onClick={() => setAdminPanelTab('products')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                       Produtos
                     </button>
                   ) : (
@@ -2663,6 +2879,7 @@ function App() {
                       className="admin-tab"
                       onClick={() => setAdminPanelTab('products')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                       Produtos
                     </button>
                   )}
@@ -2674,6 +2891,7 @@ function App() {
                       className="admin-tab is-active"
                       onClick={() => setAdminPanelTab('banners')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                       Banners
                     </button>
                   ) : (
@@ -2684,6 +2902,7 @@ function App() {
                       className="admin-tab"
                       onClick={() => setAdminPanelTab('banners')}
                     >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                       Banners
                     </button>
                   )}
@@ -2696,21 +2915,25 @@ function App() {
                       <h3>Visao geral</h3>
                     </div>
                     <div className="admin-overview">
-                      <div className="metric-card">
+                      <div className="metric-card metric-card--total">
                         <p>Total de produtos</p>
                         <strong>{adminStats.total}</strong>
+                        <svg className="metric-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                       </div>
-                      <div className="metric-card">
+                      <div className="metric-card metric-card--active">
                         <p>Ativos na vitrine</p>
                         <strong>{adminStats.active}</strong>
+                        <svg className="metric-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                       </div>
-                      <div className="metric-card">
+                      <div className="metric-card metric-card--unavailable">
                         <p>Indisponiveis</p>
                         <strong>{adminStats.unavailable}</strong>
+                        <svg className="metric-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
                       </div>
-                      <div className="metric-card">
+                      <div className="metric-card metric-card--lowstock">
                         <p>Estoque baixo</p>
                         <strong>{adminStats.lowStock}</strong>
+                        <svg className="metric-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                       </div>
                     </div>
                     <div className="panel admin-overview-note">
