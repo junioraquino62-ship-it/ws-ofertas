@@ -23,6 +23,7 @@ import {
   updateProduct,
 } from './lib/catalog'
 import {
+  createUserProfile,
   getAuthUser,
   getUserProfile,
   onAuthStateChange,
@@ -232,6 +233,28 @@ function updateLocalUserProfile(
   })
 
   saveLocalUserAccounts(nextAccounts)
+}
+
+function getGoogleAuthErrorMessage(errorMessage: string): string {
+  const normalized = errorMessage.toLowerCase()
+
+  if (normalized.includes('provider is not enabled')) {
+    return 'Google nao habilitado no Supabase. Ative em Authentication > Providers > Google.'
+  }
+
+  if (
+    normalized.includes('redirect_uri_mismatch')
+    || normalized.includes('redirect')
+    || normalized.includes('callback')
+  ) {
+    return 'URL de redirecionamento invalida. Inclua localhost e producao em Authentication > URL Configuration e no Google Cloud OAuth.'
+  }
+
+  if (normalized.includes('invalid login credentials')) {
+    return 'Falha de credenciais no provedor. Revise Client ID/Secret do Google no Supabase.'
+  }
+
+  return errorMessage
 }
 
 function isOrderInProgress(order: Order) {
@@ -593,8 +616,30 @@ function App() {
     if (userAccount?.id && isSupabaseEnabled && !useLocalAuth) {
       setProfileLoading(true)
       getUserProfile(userAccount.id)
-        .then((profile) => {
-          setUserProfile(profile)
+        .then(async (profile) => {
+          if (profile) {
+            setUserProfile(profile)
+            return
+          }
+
+          // Primeira autenticacao apos confirmacao por email: garante perfil base.
+          const fallbackName =
+            String(
+              userAccount.user_metadata?.name
+              ?? userAccount.user_metadata?.full_name
+              ?? userAccount.user_metadata?.given_name
+              ?? '',
+            ).trim() || 'Cliente'
+
+          await createUserProfile(userAccount.id, {
+            email: userAccount.email ?? '',
+            name: fallbackName,
+            phone: undefined,
+            address: undefined,
+          })
+
+          const createdProfile = await getUserProfile(userAccount.id)
+          setUserProfile(createdProfile)
         })
         .catch((error) => {
           console.error('Erro ao carregar perfil:', error)
@@ -1412,7 +1457,7 @@ function App() {
       await signInWithGoogle()
     } catch (err) {
       if (err instanceof Error) {
-        setAccountError(err.message)
+        setAccountError(getGoogleAuthErrorMessage(err.message))
       } else {
         setAccountError('Falha ao iniciar o login com Google.')
       }

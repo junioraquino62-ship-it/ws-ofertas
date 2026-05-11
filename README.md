@@ -22,34 +22,39 @@ Loja de ofertas com vitrine publica e painel admin para adicionar, retirar e exc
 
 ## Configurar Supabase
 
-1. Copie `.env.example` para `.env`.
-2. Preencha:
+- Copie `.env.example` para `.env`.
+- Preencha:
 
 ```env
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_FORCE_DISABLE_SUPABASE=false
+# opcional (recomendado em producao):
+VITE_PUBLIC_SITE_URL=https://seu-dominio.com
 ```
 
-3. Execute este SQL no Supabase:
+- Execute o SQL completo de [SETUP_SUPABASE.sql](SETUP_SUPABASE.sql) no SQL Editor do Supabase.
+- Crie um usuario admin no Supabase Auth para usar login na aba admin.
+- Se quiser acesso admin para esse usuario, execute no SQL Editor:
 
 ```sql
-create extension if not exists pgcrypto;
-
-create table if not exists products (
-	id uuid primary key default gen_random_uuid(),
-	name text not null,
-	category text not null,
-	price numeric not null,
-	old_price numeric,
-	description text not null,
-	active boolean not null default true,
-	created_at timestamptz not null default now()
-);
+INSERT INTO public.admin_users (user_id)
+SELECT id FROM auth.users WHERE email = 'admin@wsofertas.com'
+ON CONFLICT (user_id) DO NOTHING;
 ```
 
-4. Crie um usuario admin no Supabase Auth para usar login na aba admin.
+- Configure Google no Supabase em Authentication > Providers > Google com Client ID/Secret.
+- Em Authentication > URL Configuration, adicione em Redirect URLs:
 
-5. Configure em `Authentication > Providers` o login com Google e adicione `http://localhost:5173/` como redirect URL.
+- `http://localhost:5173/`
+- `https://ws-ofertas.vercel.app/` (ou seu dominio final)
+
+- No Google Cloud Console (OAuth client), inclua os callbacks do Supabase:
+
+- Authorized redirect URI: `https://SEU_PROJECT_REF.supabase.co/auth/v1/callback`
+
+- Se cadastro por e-mail estiver com confirmacao ativa, o usuario precisa confirmar o e-mail antes do primeiro login.
+- O app agora cria o perfil automaticamente no primeiro login (inclusive via Google), caso ainda nao exista.
 
 ## Arquivos chave
 

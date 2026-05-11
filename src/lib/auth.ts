@@ -23,7 +23,15 @@ export type UserProfile = {
 
 export async function signInWithGoogle(): Promise<void> {
   const client = requireSupabase()
-  const { error } = await client.auth.signInWithOAuth({ provider: 'google' })
+  const redirectBase = import.meta.env.VITE_PUBLIC_SITE_URL?.trim() || window.location.origin
+  const redirectTo = redirectBase.endsWith('/') ? redirectBase : `${redirectBase}/`
+
+  const { error } = await client.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+    },
+  })
   if (error) {
     throw error
   }
@@ -31,12 +39,25 @@ export async function signInWithGoogle(): Promise<void> {
 
 export async function signUpWithEmail(email: string, password: string, profile: Omit<UserProfile, 'id' | 'email' | 'created_at' | 'updated_at'>): Promise<void> {
   const client = requireSupabase()
-  const { data, error } = await client.auth.signUp({ email, password })
+  const { data, error } = await client.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        name: profile.name,
+        phone: profile.phone,
+        address: profile.address,
+      },
+    },
+  })
   if (error) {
     throw error
   }
 
-  if (data.user) {
+  // Se houver sessao imediata (confirmacao de email desativada), cria perfil agora.
+  // Quando a confirmacao por email estiver ativa, o usuario ainda nao estara autenticado,
+  // entao a criacao deve ocorrer apos o primeiro login para nao falhar por RLS.
+  if (data.user && data.session?.user?.id === data.user.id) {
     await createUserProfile(data.user.id, { ...profile, email })
   }
 }
